@@ -1,10 +1,12 @@
 import './style.css';
-import { TYPES, QUESTIONS, resultType } from './data.js';
+import { TYPES, QUESTIONS, resultType, GHOST_LORE } from './data.js';
 import { resultText } from './share.js';
 
 const $ = selector => document.querySelector(selector);
 let answers = [];
 let result = null;
+let discoveryTimer;
+let selectedGhost = null;
 
 $('#app').innerHTML = `
   <header>
@@ -22,7 +24,11 @@ $('#app').innerHTML = `
         <div class="intro-note"><span class="tiny-ghosts">👻🎃👻</span>여섯 가지 유령 중 나는 어떤 모습일까?</div>
       </div>
       <div class="scene-wrap" id="scene"></div>
-      <div class="scene-bottom"><span class="help">↔ 드래그해서 회전 · 스크롤로 확대</span><div class="scene-controls"><button id="zoom-in" aria-label="확대">+</button><button id="zoom-out" aria-label="축소">−</button><button id="reset" aria-label="처음 시점으로">↺</button></div></div>
+      <div class="scene-bottom"><span class="help">유령을 눌러 소개 보기 · 드래그해서 회전</span><div class="scene-controls"><button id="zoom-in" aria-label="확대">+</button><button id="zoom-out" aria-label="축소">−</button><button id="reset" aria-label="처음 시점으로">↺</button></div></div>
+    </section>
+    <section class="ghost-catalog" aria-label="유령 도감">
+      <div class="catalog-heading"><h2>우리 회사 유령 도감 <span>6종</span></h2><p>집 안의 유령이나 아래 이름을 눌러 정체를 알아보세요.</p></div>
+      <div class="catalog-buttons">${TYPES.map((type, i) => `<button class="catalog-button" data-ghost="${type.id}" aria-label="${type.name} 소개"><span class="catalog-number">0${i + 1}</span><span>${type.name}</span><span class="catalog-me" hidden>나!</span></button>`).join('')}</div>
     </section>
     <section class="quiz-guide" aria-label="참여 방법">
       <div><span>01</span><strong>나답게 골라요</strong><p>다섯 가지 질문에 솔직하게 답해요.</p></div>
@@ -32,10 +38,12 @@ $('#app').innerHTML = `
     <footer class="footer"><span>NEEDER AFTER DARK © 2026 · 오늘도 급구를 지키는 모든 유령에게.</span><span>재미로 즐기는 테스트예요. 답변은 저장하지 않아요.</span></footer>
   </main>`;
 
-// The house is decorative. Quiz and copying still work if 3D is unavailable.
+// The catalog remains usable while 3D loads or if rendering is unavailable.
 let house;
 import('./scene.js').then(({ createHouse }) => {
-  house = createHouse($('#scene'));
+  house = createHouse($('#scene'), discoverGhost);
+  house.markMine(result?.id);
+  if (selectedGhost) house.select(selectedGhost);
 }).catch(() => { $('#scene').innerHTML = '<div class="scene-placeholder" aria-hidden="true">👻 🎃 👻</div>'; });
 
 function modal(content, title = 'FIND YOUR INNER GHOST') {
@@ -54,6 +62,7 @@ $('#modal').addEventListener('click', event => {
 });
 
 function begin() {
+  clearTimeout(discoveryTimer);
   answers = [];
   quiz();
 }
@@ -73,6 +82,8 @@ function quiz() {
       if (answers.length < QUESTIONS.length) quiz();
       else {
         result = resultType(answers);
+        house?.markMine(result.id);
+        updateCatalog();
         $('#my').textContent = '👻 내 결과 보기';
         showResult();
       }
@@ -95,11 +106,61 @@ function showResult() {
       <button class="primary full" id="copy-result">📋 결과 텍스트 복사하기</button>
       <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
       <div id="manual-copy" hidden><label class="field-label" for="copy-text">자동 복사가 지원되지 않아요. 아래 텍스트를 직접 복사해 주세요.</label><textarea id="copy-text" readonly rows="9"></textarea></div>
+      <button class="secondary full" id="find-me">집에서 내 유령 찾기 👻</button>
       <button class="text-link retake" id="retake">테스트 다시 하기 ↺</button>
     </div>`, 'YOUR GHOST IDENTITY');
   $('#copy-result').onclick = () => copyResult(type);
   $('#retake').onclick = begin;
+  $('#find-me').onclick = () => {
+    $('#modal').close();
+    house?.select(result.id);
+    $('#scene').scrollIntoView({ behavior: reducedMotion() ? 'instant' : 'smooth', block: 'center' });
+    document.querySelector(`[data-ghost="${result.id}"]`).focus({ preventScroll: true });
+  };
 }
+
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function updateCatalog() {
+  document.querySelectorAll('[data-ghost]').forEach(button => {
+    const mine = button.dataset.ghost === result?.id;
+    button.classList.toggle('is-mine', mine);
+    button.querySelector('.catalog-me').hidden = !mine;
+  });
+}
+
+function discoverGhost(id) {
+  const type = TYPES.find(type => type.id === id);
+  if (!type) return;
+  selectedGhost = id;
+  house?.select(id);
+  clearTimeout(discoveryTimer);
+  // Let the hop and camera movement introduce the ghost before its card opens.
+  discoveryTimer = setTimeout(() => {
+    const lore = GHOST_LORE[id];
+    modal(`
+      <div class="result ghost-profile">
+        <div class="result-visual"><span class="mini-ghost" style="--ghost:${type.color}"></span></div>
+        <p class="result-tag">GHOST 0${TYPES.indexOf(type) + 1}${result?.id === id ? ' · 바로 나의 유령!' : ''}</p>
+        <h2>${type.name}</h2>
+        <p class="modal-copy">${lore.intro}</p>
+        <dl class="facts lore-facts">
+          <dt>성격 · 특징</dt><dd>${lore.personality}</dd>
+          <dt>출몰 장소</dt><dd>${lore.habitat}</dd>
+          <dt>자주 하는 말</dt><dd>${type.habit}</dd>
+          <dt>퇴치법</dt><dd>${lore.exorcism}</dd>
+        </dl>
+        <button class="primary full" id="profile-quiz">${result ? '내 테스트 결과 보기' : '나는 어떤 유령일까? 테스트하기'} →</button>
+        <button class="text-link retake" id="back-to-house">다른 유령 구경하기</button>
+      </div>`, 'THE GHOST ENCYCLOPEDIA');
+    $('#profile-quiz').onclick = () => result ? showResult() : begin();
+    $('#back-to-house').onclick = () => { $('#modal').close(); house?.reset(); };
+  }, reducedMotion() ? 0 : 420);
+}
+
+document.querySelectorAll('[data-ghost]').forEach(button => {
+  button.onclick = () => discoverGhost(button.dataset.ghost);
+});
 
 async function copyResult(type) {
   const text = resultText(type, location.href);
@@ -134,7 +195,7 @@ async function copyResult(type) {
 }
 
 $('#start').onclick = begin;
-$('#my').onclick = () => result ? showResult() : begin();
+$('#my').onclick = () => { clearTimeout(discoveryTimer); result ? showResult() : begin(); };
 $('#zoom-in').onclick = () => house?.zoom(1);
 $('#zoom-out').onclick = () => house?.zoom(-1);
 $('#reset').onclick = () => house?.reset();

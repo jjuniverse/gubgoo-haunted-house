@@ -16,3 +16,42 @@ export const QUESTIONS = [
 export function resultType(answers){const scores=Object.fromEntries(TYPES.map(t=>[t.id,0]));for(const a of answers)if(a in scores)scores[a]++;return TYPES.reduce((best,t)=>scores[t.id]>scores[best.id]?t:best,TYPES[0]);}
 export const typeOf=id=>TYPES.find(t=>t.id===id)||TYPES[0];
 
+
+export const GHOST_LORE = {
+  meeting: {
+    intro: '회의가 끝나도 다음 이야기를 찾아 떠도는 유령.',
+    personality: '사람들의 의견을 연결하는 다정한 조율자. 다만 “마지막으로 하나만”을 세 번쯤 말해요.',
+    habitat: '예약 시간이 끝난 회의실',
+    exorcism: '“이건 슬랙으로 공유드릴게요.” 하고 회의실 불을 끈다.',
+  },
+  vampire: {
+    intro: '사무실 불이 꺼질수록 눈빛이 반짝이는 몰입형 흡혈귀.',
+    personality: '조용하고 꼼꼼해요. 남들이 놓친 디테일을 발견하면 시간 가는 줄 몰라요.',
+    habitat: '모니터 하나만 켜진 심야 사무실',
+    exorcism: '“오늘 할 일은 끝났어요.”와 따뜻한 이불을 준비한다.',
+  },
+  wolf: {
+    intro: '퇴근 시간이 되면 누구보다 빠르게 본래 모습으로 돌아오는 유령.',
+    personality: '일도 휴식도 확실하게 챙기는 현실주의자. 집중해서 끝내고 내일의 기운을 아껴 둬요.',
+    habitat: '퇴근 1분 전, 사무실 출입문 앞',
+    exorcism: '“오늘은 여기까지!” 한마디면 집으로 사라진다.',
+  },
+  pumpkin: {
+    intro: '바스락 소리와 함께 나타나 사탕을 나누는 작은 호박 요정.',
+    personality: '동료의 기분을 먼저 살피는 다정한 분위기 메이커. 간식을 나눌 때 가장 행복해요.',
+    habitat: '새 간식이 도착한 탕비실',
+    exorcism: '마지막 과자까지 나눠 먹고 “덕분에 힘났어요!”라고 말한다.',
+  },
+  wizard: {
+    intro: '아무도 생각하지 못한 방법을 모자 속에서 꺼내는 마법사.',
+    personality: '호기심이 많고 상상력이 풍부해요. “그런데 이렇게 해보면?”으로 새로운 길을 열어요.',
+    habitat: '낙서와 아이디어로 가득한 화이트보드 앞',
+    exorcism: '새 노트를 건네면 아이디어를 적으러 조용히 사라진다.',
+  },
+  slack: {
+    intro: '누군가 정보를 찾으면 관련 링크를 들고 나타나는 유령.',
+    personality: '말없이 흐름을 읽는 관찰자. 흩어진 이야기를 기억하고 필요한 순간에 꺼내 줘요.',
+    habitat: '읽지 않은 메시지가 쌓인 슬랙 스레드',
+    exorcism: '“찾았어요, 고마워요!”라고 답하고 알림을 잠시 끈다.',
+  },
+};

@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { SVGRenderer } from 'three/addons/renderers/SVGRenderer.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TYPES, typeOf } from './data.js';
-export function createHouse(container){
+export function createHouse(container,onSelect){
  let renderer,software=false;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{software=true;renderer=new SVGRenderer();renderer.setQuality('low');renderer.setPrecision(2);}
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));if(!software){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setClearColor(0x17151e,0);}else{renderer.setClearColor(new THREE.Color(0x17151e));}renderer.outputColorSpace=THREE.SRGBColorSpace;container.prepend(renderer.domElement);renderer.domElement.setAttribute('aria-label','급구 유령의 집 3D 모형. 드래그로 회전하고 스크롤로 확대할 수 있어요.');
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));if(!software){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setClearColor(0x17151e,0);}else{renderer.setClearColor(new THREE.Color(0x17151e));}renderer.outputColorSpace=THREE.SRGBColorSpace;container.prepend(renderer.domElement);renderer.domElement.setAttribute('aria-label','급구 유령의 집 3D 모형. 드래그로 회전하고 스크롤로 확대할 수 있어요. 유령을 누르면 소개를 볼 수 있어요.');
  const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(35,1,.1,120);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.enablePan=false;controls.minDistance=13;controls.maxDistance=32;controls.minPolarAngle=.35;controls.maxPolarAngle=1.25;controls.target.set(0,.4,0);
  scene.add(new THREE.AmbientLight(0xa590bf,2));const sun=new THREE.DirectionalLight(0xffd5aa,4);sun.position.set(-5,12,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-10;sun.shadow.camera.right=10;sun.shadow.camera.top=10;sun.shadow.camera.bottom=-10;sun.shadow.normalBias=.04;scene.add(sun);const rim=new THREE.DirectionalLight(0x9c88ff,2);rim.position.set(7,7,-8);scene.add(rim);
  const mats=new Map();const mat=(c,emissive)=>{const key=`${c}-${emissive}`;if(!mats.has(key))mats.set(key,new THREE.MeshStandardMaterial({color:c,roughness:.8,...(emissive?{emissive:c,emissiveIntensity:emissive}:{})}));return mats.get(key)};
@@ -44,6 +44,8 @@ export function createHouse(container){
  // A crescent moon and sparse floating stars frame the diorama.
  const moon=sphere(.67,0xffd597,5.7,5.3,-4);moon.material=mat(0xffd597,.6);sphere(.61,0x17151e,6,5.5,-3.8);
  const stars=new THREE.Group();for(let i=0;i<25;i++){const x=Math.sin(i*37)*8,z=-4-Math.abs(Math.cos(i*13))*3,y=2+((i*17)%40)/10;const s=sphere(.025+(i%3)*.012,0xd5c3e8,x,y,z,stars);s.material=mat(0xd5c3e8,.6);}scene.add(stars);
+ const labels=document.createElement('div');labels.className='ghost-hotspots';container.append(labels);
+ const pickables=[];
  let actors=[];const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
  function addGhosts(){for(const [i,g] of TYPES.map(t=>({type:t.id})).entries()){
  const t=typeOf(g.type);const [x,z]=[[-4.3,1.2],[.5,1.3],[-.5,3.1],[3.9,1.8],[-3.0,2.1],[1.8,2.7]][i];const group=new THREE.Group();scene.add(group);group.position.set(x,.67,z);
@@ -55,12 +57,65 @@ export function createHouse(container){
  if(t.id==='vampire'){const cape=box(.75,.6,.12,0x79425f,0,0,-.22,group);cape.rotation.z=.08;}
  if(t.id==='pumpkin'){cylinder(.07,.09,.15,0x806346,0,.74,0,group);}
  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.43,software?10:32),new THREE.MeshBasicMaterial({color:0x211729,transparent:true,opacity:.25,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=-.64;group.add(shadow);
- group.traverse(o=>{if(o.isMesh)o.castShadow=true;});actors.push({group,base:.67,phase:i*1.8});
+ group.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o!==shadow){o.userData.ghostId=t.id;pickables.push(o);}}});
+ const button=document.createElement('button');button.className='ghost-hotspot';button.setAttribute('aria-label',`${t.name} 소개`);button.innerHTML=`<span class="hotspot-number">0${i+1}</span><span class="mine-marker" hidden>나!</span>`;
+ button.addEventListener('click',()=>onSelect?.(t.id));labels.append(button);
+ actors.push({id:t.id,group,button,base:.67,phase:i*1.8,hopStart:-1000});
  }}
  addGhosts();
- function reset(){camera.position.set(15,14,20);controls.target.set(0,.5,0);controls.update();}
- function zoom(dir){camera.position.sub(controls.target).multiplyScalar(dir>0?.85:1.18).add(controls.target);controls.update();}
+ let cameraMove=null;
+ function select(id){
+  const actor=actors.find(a=>a.id===id);if(!actor)return;
+  const now=performance.now();actor.hopStart=now;
+  const target=new THREE.Vector3(actor.group.position.x,.8,actor.group.position.z);
+  const offset=camera.position.clone().sub(controls.target).normalize().multiplyScalar(16);
+  cameraMove={start:now,fromPosition:camera.position.clone(),fromTarget:controls.target.clone(),toPosition:target.clone().add(offset),toTarget:target};
+  if(reduced){camera.position.copy(cameraMove.toPosition);controls.target.copy(target);cameraMove=null;controls.update();}
+ }
+ function markMine(id){
+  actors.forEach(actor=>{
+   const mine=actor.id===id;actor.button.classList.toggle('is-mine',mine);
+   actor.button.querySelector('.mine-marker').hidden=!mine;
+   const name=typeOf(actor.id).name;
+   actor.button.setAttribute('aria-label',`${name} 소개${mine?' · 나의 유령':''}`);
+  });
+ }
+ controls.addEventListener('start',()=>{cameraMove=null;});
+ // Raycast mesh taps; orbit drags and multitouch must never open a profile.
+ const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();const touches=new Set();let press=null;
+ const down=event=>{touches.add(event.pointerId);press=touches.size===1?{id:event.pointerId,x:event.clientX,y:event.clientY,moved:false}:null;};
+ const move=event=>{if(press&&Math.hypot(event.clientX-press.x,event.clientY-press.y)>8)press.moved=true;};
+ const up=event=>{
+  const tap=press;touches.delete(event.pointerId);press=null;
+  if(!tap||tap.id!==event.pointerId||tap.moved||touches.size||Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>8)return;
+  const rect=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
+  scene.updateMatrixWorld(true);camera.updateMatrixWorld(true);ray.setFromCamera(pointer,camera);
+  const hit=ray.intersectObjects(pickables,false)[0];if(hit)onSelect?.(hit.object.userData.ghostId);
+ };
+ const cancel=event=>{touches.delete(event.pointerId);press=null;};
+ renderer.domElement.addEventListener('pointerdown',down);
+ renderer.domElement.addEventListener('pointermove',move);
+ renderer.domElement.addEventListener('pointerup',up);
+ renderer.domElement.addEventListener('pointercancel',cancel);
+ function reset(){cameraMove=null;camera.position.set(15,14,20);controls.target.set(0,.5,0);controls.update();}
+ function zoom(dir){cameraMove=null;camera.position.sub(controls.target).multiplyScalar(dir>0?.85:1.18).add(controls.target);controls.update();}
  const resize=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);});resize.observe(container);reset();
- let raf,last=0;function animate(time){raf=requestAnimationFrame(animate);if(document.hidden||(software&&time-last<80))return;last=time;controls.update();for(const a of actors){a.group.position.y=a.base+(reduced?0:Math.sin(time*.0017+a.phase)*.09);a.group.rotation.y=reduced?0:Math.sin(time*.0008+a.phase)*.13;}renderer.render(scene,camera);}animate(0);
- return {reset,zoom,dispose(){cancelAnimationFrame(raf);resize.disconnect();controls.dispose();scene.traverse(o=>o.geometry?.dispose());mats.forEach(m=>m.dispose());renderer.dispose?.();}};
+ let raf,last=0;const projected=new THREE.Vector3();
+ function animate(time){
+  raf=requestAnimationFrame(animate);if(document.hidden||(software&&time-last<80))return;last=time;
+  if(cameraMove){const progress=Math.min(1,(time-cameraMove.start)/500);const ease=1-Math.pow(1-progress,3);camera.position.lerpVectors(cameraMove.fromPosition,cameraMove.toPosition,ease);controls.target.lerpVectors(cameraMove.fromTarget,cameraMove.toTarget,ease);if(progress===1)cameraMove=null;}
+  controls.update();
+  for(const a of actors){
+   const hop=(time-a.hopStart)/650;
+   a.group.position.y=a.base+(reduced?0:Math.sin(time*.0017+a.phase)*.09+(hop>=0&&hop<1?Math.sin(hop*Math.PI)*.65:0));
+   a.group.rotation.y=reduced?0:Math.sin(time*.0008+a.phase)*.13;
+   projected.copy(a.group.position).add(new THREE.Vector3(0,1.05,0)).project(camera);
+   const visible=projected.z>=-1&&projected.z<=1&&Math.abs(projected.x)<.98&&Math.abs(projected.y)<.95;
+   a.button.hidden=!visible;
+   a.button.style.transform=`translate(-50%,-100%) translate(${(projected.x*.5+.5)*container.clientWidth}px,${(-projected.y*.5+.5)*container.clientHeight}px)`;
+  }
+  renderer.render(scene,camera);
+ }
+ animate(0);
+ return {reset,zoom,select,markMine,dispose(){cancelAnimationFrame(raf);resize.disconnect();controls.dispose();renderer.domElement.removeEventListener('pointerdown',down);renderer.domElement.removeEventListener('pointermove',move);renderer.domElement.removeEventListener('pointerup',up);renderer.domElement.removeEventListener('pointercancel',cancel);labels.remove();scene.traverse(o=>{o.geometry?.dispose();if(o.material&&!Array.from(mats.values()).includes(o.material)){o.material.map?.dispose();o.material.dispose();}});mats.forEach(m=>m.dispose());renderer.dispose?.();}};
 }
