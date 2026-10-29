@@ -13,10 +13,6 @@ export const QUESTIONS = [
  {q:'할로윈 파티에서 내 역할은?',a:[['기상천외한 게임을 만들어 온다.','wizard'],['먹거리와 선물을 야무지게 챙긴다.','pumpkin'],['마지막까지 남아 분위기를 즐긴다.','vampire'],['즐길 만큼 즐기고 귀가 시간은 지킨다.','wolf']]},
  {q:'딱 하나의 초능력을 얻을 수 있다면?',a:[['흩어진 대화에서 답을 찾아내는 능력.','slack'],['생각만 하면 아이디어가 현실이 되는 능력.','wizard'],['누구와도 마음이 통하는 능력.','meeting'],['한 시간 만에 하루 일을 끝내는 능력.','wolf']]}
 ];
-export const TRICKS=[{id:'pumpkin',icon:'🎃',name:'호박 변신',desc:'30분 동안 동료의 유령이 호박으로 변해요.'},{id:'boo',icon:'👻',name:'부우~ 말풍선',desc:'30분 동안 유령 위에 “퇴근… 시켜줘…”가 떠요.'},{id:'sparkle',icon:'✨',name:'반짝반짝 저주',desc:'30분 동안 유령 주위에 수상한 별이 맴돌아요.'}];
 export function resultType(answers){const scores=Object.fromEntries(TYPES.map(t=>[t.id,0]));for(const a of answers)if(a in scores)scores[a]++;return TYPES.reduce((best,t)=>scores[t.id]>scores[best.id]?t:best,TYPES[0]);}
 export const typeOf=id=>TYPES.find(t=>t.id===id)||TYPES[0];
-export const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const demoGhosts=()=>TYPES.map((t,i)=>({id:`demo-${i}`,nickname:['미팅 유령','달빛 유령','칼퇴 유령','간식 유령','반짝 유령','알림 유령'][i],type:t.id,candies:[7,4,9,12,3,6][i],demo:true,trick:null}));
 
-export function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const h=[...bytes].map(b=>b.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}

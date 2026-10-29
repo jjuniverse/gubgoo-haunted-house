@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { SVGRenderer } from 'three/addons/renderers/SVGRenderer.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { typeOf } from './data.js';
-export function createHouse(container,onSelect){
- const labels=document.createElement('div');labels.className='scene-labels';container.append(labels);
+import { TYPES, typeOf } from './data.js';
+export function createHouse(container){
  let renderer,software=false;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{software=true;renderer=new SVGRenderer();renderer.setQuality('low');renderer.setPrecision(2);}
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));if(!software){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setClearColor(0x17151e,0);}else{renderer.setClearColor(new THREE.Color(0x17151e));}renderer.outputColorSpace=THREE.SRGBColorSpace;container.prepend(renderer.domElement);renderer.domElement.setAttribute('aria-label','급구 유령의 집 3D 모형. 드래그로 회전하고 스크롤로 확대할 수 있어요. 동료 선택은 아래 목록에서도 가능해요.');
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));if(!software){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.setClearColor(0x17151e,0);}else{renderer.setClearColor(new THREE.Color(0x17151e));}renderer.outputColorSpace=THREE.SRGBColorSpace;container.prepend(renderer.domElement);renderer.domElement.setAttribute('aria-label','급구 유령의 집 3D 모형. 드래그로 회전하고 스크롤로 확대할 수 있어요.');
  const scene=new THREE.Scene();const camera=new THREE.PerspectiveCamera(35,1,.1,120);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.enablePan=false;controls.minDistance=13;controls.maxDistance=32;controls.minPolarAngle=.35;controls.maxPolarAngle=1.25;controls.target.set(0,.4,0);
  scene.add(new THREE.AmbientLight(0xa590bf,2));const sun=new THREE.DirectionalLight(0xffd5aa,4);sun.position.set(-5,12,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-10;sun.shadow.camera.right=10;sun.shadow.camera.top=10;sun.shadow.camera.bottom=-10;sun.shadow.normalBias=.04;scene.add(sun);const rim=new THREE.DirectionalLight(0x9c88ff,2);rim.position.set(7,7,-8);scene.add(rim);
  const mats=new Map();const mat=(c,emissive)=>{const key=`${c}-${emissive}`;if(!mats.has(key))mats.set(key,new THREE.MeshStandardMaterial({color:c,roughness:.8,...(emissive?{emissive:c,emissiveIntensity:emissive}:{})}));return mats.get(key)};
@@ -45,12 +44,9 @@ export function createHouse(container,onSelect){
  // A crescent moon and sparse floating stars frame the diorama.
  const moon=sphere(.67,0xffd597,5.7,5.3,-4);moon.material=mat(0xffd597,.6);sphere(.61,0x17151e,6,5.5,-3.8);
  const stars=new THREE.Group();for(let i=0;i<25;i++){const x=Math.sin(i*37)*8,z=-4-Math.abs(Math.cos(i*13))*3,y=2+((i*17)%40)/10;const s=sphere(.025+(i%3)*.012,0xd5c3e8,x,y,z,stars);s.material=mat(0xd5c3e8,.6);}scene.add(stars);
- let actors=[],ghosts=[];const selectable=[];const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
- function disposeGroup(g){g.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&!Array.from(mats.values()).includes(o.material)){o.material.map?.dispose();o.material.dispose();}});scene.remove(g);}
- function setGhosts(next){actors.forEach(a=>{disposeGroup(a.group);a.label.remove()});actors=[];selectable.length=0;ghosts=next;const counts={meeting:0,office:0,pantry:0,lobby:0};const positions={meeting:[-3.7,1.7],office:[.2,1.9],pantry:[3.5,1.8],lobby:[-.8,3.25]};for(const [i,g] of next.entries()){
- const t=typeOf(g.type);const count=counts[t.room]++;const [bx,bz]=positions[t.room];const x=bx+(count%3-1)*.82,z=bz+Math.floor(count/3)*.63;const group=new THREE.Group();scene.add(group);group.position.set(x,.67,z);
- const active=g.trick&&g.trick.expiresAt>Date.now()?g.trick:null;
- if(active?.id==='pumpkin'){pumpkin(0,0,1.1,group);}else{
+ let actors=[];const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ function addGhosts(){for(const [i,g] of TYPES.map(t=>({type:t.id})).entries()){
+ const t=typeOf(g.type);const [x,z]=[[-4.3,1.2],[.5,1.3],[-.5,3.1],[3.9,1.8],[-3.0,2.1],[1.8,2.7]][i];const group=new THREE.Group();scene.add(group);group.position.set(x,.67,z);
  const body=new THREE.Mesh(new THREE.CylinderGeometry(.32,.43,.62,software?12:32),mat(t.color));body.position.y=.05;group.add(body);sphere(.32,t.color,0,.36,0,group);for(let j=0;j<7;j++)sphere(.115,t.color,Math.cos(j/7*Math.PI*2)*.32,-.25,Math.sin(j/7*Math.PI*2)*.32,group);
  for(let xx of [-.115,.115]){const eye=sphere(.046,0x352842,xx,.27,.294,group);eye.scale.y=1.45;}const mouth=sphere(.035,0x584260,0,.15,.326,group);mouth.scale.y=.7;
  for(let xx of [-.24,.24]){const cheek=sphere(.065,0xe898a2,xx,.14,.26,group);cheek.scale.z=.3;}for(let xx of [-.37,.37]){const arm=sphere(.12,t.color,xx,.01,.02,group);arm.scale.set(.7,1.45,.8);arm.rotation.z=xx<0?-.7:.7;}
@@ -58,16 +54,13 @@ export function createHouse(container,onSelect){
  if(t.id==='wolf'){for(let xx of [-.23,.23]){const ear=new THREE.Mesh(new THREE.ConeGeometry(.13,.3,3),mat(t.color));ear.position.set(xx,.66,0);group.add(ear);}}
  if(t.id==='vampire'){const cape=box(.75,.6,.12,0x79425f,0,0,-.22,group);cape.rotation.z=.08;}
  if(t.id==='pumpkin'){cylinder(.07,.09,.15,0x806346,0,.74,0,group);}
- }
  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.43,software?10:32),new THREE.MeshBasicMaterial({color:0x211729,transparent:true,opacity:.25,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=-.64;group.add(shadow);
- group.traverse(o=>{if(o.isMesh){o.userData.ghostId=g.id;selectable.push(o);o.castShadow=true;}});
- const label=document.createElement('button');label.className='ghost-label';label.textContent=(active?.id==='boo'?'👻 퇴근… 시켜줘… · ':active?.id==='sparkle'?'✨ ':'')+g.nickname;label.setAttribute('aria-label',`${g.nickname}, ${t.name} 보기`);label.addEventListener('click',()=>onSelect(g.id));labels.append(label);actors.push({group,label,base:.67,phase:i*1.8,id:g.id,room:t.room});
+ group.traverse(o=>{if(o.isMesh)o.castShadow=true;});actors.push({group,base:.67,phase:i*1.8});
  }}
- const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();let down;renderer.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>7)return;const r=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(pointer,camera);const h=ray.intersectObjects(selectable,false)[0];if(h)onSelect(h.object.userData.ghostId);});
- let filter='all';function focus(roomOrId){const a=actors.find(a=>a.id===roomOrId);filter=a?'all':roomOrId;actors.forEach(a=>{a.group.visible=filter==='all'||a.room===filter;a.label.style.display=a.group.visible?'':'none';});if(a){controls.target.copy(a.group.position);camera.position.copy(a.group.position).add(new THREE.Vector3(7,7,10));}else{controls.target.set(0,.4,0);}controls.update();}
- function reset(){filter='all';camera.position.set(15,14,20);controls.target.set(0,.5,0);actors.forEach(a=>{a.group.visible=true;a.label.style.display=''});controls.update();}
+ addGhosts();
+ function reset(){camera.position.set(15,14,20);controls.target.set(0,.5,0);controls.update();}
  function zoom(dir){camera.position.sub(controls.target).multiplyScalar(dir>0?.85:1.18).add(controls.target);controls.update();}
  const resize=new ResizeObserver(()=>{const {width,height}=container.getBoundingClientRect();camera.aspect=width/height;camera.updateProjectionMatrix();renderer.setSize(width,height);});resize.observe(container);reset();
- let raf,last=0;const projected=new THREE.Vector3();function animate(time){raf=requestAnimationFrame(animate);if(document.hidden||(software&&time-last<80))return;last=time;controls.update();for(const a of actors){a.group.position.y=a.base+(reduced?0:Math.sin(time*.0017+a.phase)*.09);a.group.rotation.y=reduced?0:Math.sin(time*.0008+a.phase)*.13;projected.copy(a.group.position).add(new THREE.Vector3(0,1.15,0)).project(camera);const w=container.clientWidth,h=container.clientHeight;a.label.style.transform=`translate(-50%,-50%) translate(${(projected.x*.5+.5)*w}px,${(-projected.y*.5+.5)*h}px)`;a.label.style.opacity=projected.z>1?'0':'1';}renderer.render(scene,camera);}animate(0);
- return {setGhosts,focus,reset,zoom,dispose(){cancelAnimationFrame(raf);resize.disconnect();controls.dispose();scene.traverse(o=>o.geometry?.dispose());mats.forEach(m=>m.dispose());renderer.dispose?.();}};
+ let raf,last=0;function animate(time){raf=requestAnimationFrame(animate);if(document.hidden||(software&&time-last<80))return;last=time;controls.update();for(const a of actors){a.group.position.y=a.base+(reduced?0:Math.sin(time*.0017+a.phase)*.09);a.group.rotation.y=reduced?0:Math.sin(time*.0008+a.phase)*.13;}renderer.render(scene,camera);}animate(0);
+ return {reset,zoom,dispose(){cancelAnimationFrame(raf);resize.disconnect();controls.dispose();scene.traverse(o=>o.geometry?.dispose());mats.forEach(m=>m.dispose());renderer.dispose?.();}};
 }

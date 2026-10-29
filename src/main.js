@@ -1,26 +1,141 @@
 import './style.css';
-import {uuid,TYPES,QUESTIONS,TRICKS,typeOf,resultType,escapeHtml as esc} from './data.js';
-import {createHouse} from './scene.js';
-import {isDemo,readDemo,writeDemo,request,login,acceptLogin} from './api.js';
-const $=s=>document.querySelector(s);let state=isDemo?readDemo():{ghosts:[],events:[],me:null};let filter='all',search='',selected=null,tab='treat',trick='pumpkin',answers=[],nickname='',timer;
-$('#app').innerHTML=`<header><div class="brand"><span class="brand-mark">↯</span><div>급구 유령의 집<small>NEEDER AFTER DARK</small></div></div><nav class="nav" aria-label="주 메뉴"><button class="active" id="home">유령의 집</button><button id="guide">이용 안내</button><button class="my" id="my">👻 나의 유령</button></nav></header><main class="container"><div class="topline"><div class="eyebrow">OCTOBER 31 · HALLOWEEN SPECIAL</div><span class="mode"><i></i>${isDemo?'체험 모드 · 이 브라우저에만 저장':'니더 직원 전용 · Slack 로그인'}</span></div><section class="hero" aria-label="급구 유령의 집"><div class="intro"><span class="pill">✦ 오늘만큼은, 우리도 유령</span><h1>퇴근 후 깨어나는<br>또 다른 <span>우리.</span></h1><p>급구 사무실에 수상한 동료들이 나타났어요.<br>나의 유령을 찾고, 동료의 문을 두드려 보세요.<br>오늘은 마음껏, Trick or Treat!</p><button class="primary" id="start">나의 유령 알아보기 <b>↗</b></button><button class="text-link" id="browse">먼저 유령의 집 구경하기 ↓</button><div class="intro-note"><span class="tiny-ghosts">👻🎃👻</span><span id="intro-count"></span></div></div><div class="scene-wrap" id="scene"></div><div class="scene-bottom"><span class="help">↔ 드래그해서 회전 · 스크롤로 확대 · 유령을 눌러 인사하기</span><div class="scene-controls"><button id="zoom-in" aria-label="확대">+</button><button id="zoom-out" aria-label="축소">−</button><button id="reset" aria-label="처음 시점으로">↺</button></div></div></section><nav class="room-tabs" aria-label="공간 필터"><button data-room="all" class="active">🏚️ 집 전체</button><button data-room="meeting">🪑 회의실</button><button data-room="office">💻 심야 사무실</button><button data-room="pantry">🍬 탕비실</button><button data-room="lobby">🌙 로비</button></nav><section class="community" id="community"><div class="section-heading"><div><h2>우리 회사 유령들 <span id="count">0</span></h2><p>${isDemo?'지금 보이는 유령은 체험용 캐릭터예요.':'같이 일하던 동료의 새로운 모습을 발견해 보세요.'}</p></div><label><span class="sr-only">동료 이름 검색</span><input class="search" id="search" placeholder="⌕  동료 이름 검색" type="search" maxlength="30"/></label></div><div class="community-grid"><div class="ghost-grid" id="ghost-grid"></div><aside class="activity"><h3>✦ 유령의 집 소식</h3><div id="events"></div><div class="event-tip">작은 사탕 하나, 귀여운 장난 하나.<br>평소 못 전한 인사를 건네 보세요. 🍬</div></aside></div></section><footer class="footer"><span>NEEDER AFTER DARK © 2026<br>오늘도 급구를 지키는 모든 유령에게.</span><button id="about">${isDemo?'체험 모드 안내':'개인정보 및 참여 안내'} ↗</button></footer></main>`;
-const house=createHouse($('#scene'),id=>openGhost(id));
-function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(timer);timer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
-function modal(content,title='NEEDER AFTER DARK'){const el=$('#modal');el.innerHTML=`<div class="modal-top"><span>${title}</span><button class="close" aria-label="닫기">×</button></div>${content}`;el.querySelector('.close').onclick=()=>el.close();if(!el.open)el.showModal();}
-$('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
-function render(){house.setGhosts(state.ghosts);if(filter!=='all')house.focus(filter);renderList();$('#count').textContent=state.ghosts.length;$('#intro-count').textContent=isDemo?`${state.ghosts.length}명의 유령이 집을 지키는 중`:`${state.ghosts.length}명의 동료가 유령으로 변신했어요`;$('#start').innerHTML=state.me?'내 유령 만나러 가기 <b>↗</b>':'나의 유령 알아보기 <b>↗</b>';$('#events').innerHTML=state.events.length?state.events.slice(0,4).map(e=>`<div class="event">${e.kind==='treat'?'🍬':'🕷️'} <strong>${esc(e.from)}</strong> → ${esc(e.to)}<br>${e.kind==='treat'?'따뜻한 사탕을 건넸어요.':'귀여운 장난을 걸었어요.'}<small>${isDemo?'체험 기록 · ':''}${new Date(e.createdAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}</small></div>`).join(''):`<p class="empty">아직 조용한 유령의 집.<br>첫 번째 인사를 남겨 볼까요?</p>`;}
-function renderList(){const gs=state.ghosts.filter(g=>(filter==='all'||typeOf(g.type).room===filter)&&g.nickname.toLowerCase().includes(search.toLowerCase()));$('#ghost-grid').innerHTML=gs.length?gs.map(g=>{const t=typeOf(g.type);return `<button class="ghost-card" data-id="${esc(g.id)}"><span class="avatar"><span class="mini-ghost" style="--ghost:${t.color}"></span></span><span><h3>${esc(g.nickname)} ${g.id===state.me?.id?'· 나':''}</h3><p>${t.name}</p><span class="candy-count">🍬 ${g.candies||0}개의 사탕</span></span><span class="card-arrow">↗</span></button>`}).join(''):`<p class="empty">${search?'찾는 유령이 없어요. 다른 이름으로 찾아보세요.':!isDemo&&!sessionStorage.getItem('ghost-token')?'슬랙으로 로그인하면 동료들이 보여요.':'이 공간에는 아직 유령이 없어요.'}</p>`;$('#ghost-grid').querySelectorAll('button').forEach(b=>b.onclick=()=>{house.focus(b.dataset.id);openGhost(b.dataset.id);});}
-async function refresh(){if(isDemo){state=readDemo();render();return;}if(!sessionStorage.getItem('ghost-token')){render();return;}try{state=await request('/api/house');render();}catch(e){toast(e.message);}}
-function begin(){if(state.me){showResult(typeOf(state.me.type),false);return;}if(!isDemo&&!sessionStorage.getItem('ghost-token')){modal(`<h2 class="modal-title">유령의 집에 오신 걸 환영해요 👻</h2><p class="modal-copy">니더 슬랙 계정으로 입장해 주세요. 동료의 유령을 만나고 사탕과 장난을 보낼 수 있어요.</p><div class="notice">슬랙 표시 이름과 사용자 ID를 참여자 식별에 사용해요. 사탕·장난을 받으면 슬랙 DM으로 알림을 보내요.</div><button class="primary full" id="login">Slack으로 입장하기 ↗</button>`);$('#login').onclick=login;return;}nickname=state.me?.nickname||'';answers=[];modal(`<h2 class="modal-title">당신은 어떤 유령일까요?</h2><p class="modal-copy">다섯 가지 질문으로 만나는 또 다른 나.<br>정답은 없어요. 가장 나다운 답을 골라 주세요.</p><label class="field-label" for="nickname">동료들이 알아볼 이름</label><input id="nickname" placeholder="예: 쥬디" maxlength="20" autocomplete="nickname"/><p class="notice">${isDemo?'체험 결과와 사탕은 이 브라우저에만 저장돼요. 실제 직원에게 알림이 가지 않아요.':'이름과 유령 캐릭터는 로그인한 동료들에게 보여요.'}</p><p class="error" id="form-error"></p><button class="primary full" id="quiz-start">유령 테스트 시작하기 →</button>`,'GHOST PERSONALITY TEST');$('#quiz-start').onclick=()=>{nickname=$('#nickname').value.trim();if(!nickname){$('#form-error').textContent='이름을 입력해 주세요.';$('#nickname').focus();return;}quiz();};$('#nickname').addEventListener('keydown',e=>{if(e.key==='Enter')$('#quiz-start').click()});}
-function quiz(){const i=answers.length,q=QUESTIONS[i];modal(`<div class="progress"><div style="width:${i/QUESTIONS.length*100}%"></div></div><span class="result-tag">QUESTION 0${i+1} / 0${QUESTIONS.length}</span><h2 class="modal-title">${q.q}</h2><div class="answers">${q.a.map(([text,id],j)=>`<button class="answer" data-answer="${id}"><span style="color:#ba99d4;margin-right:12px">0${j+1}</span>${text}</button>`).join('')}</div>${i?'<button class="quiz-back">← 이전 질문</button>':''}`,'FIND YOUR INNER GHOST');$('.answers').querySelectorAll('button').forEach(b=>b.onclick=async()=>{answers.push(b.dataset.answer);if(answers.length<QUESTIONS.length)quiz();else await finish();});$('.quiz-back')?.addEventListener('click',()=>{answers.pop();quiz();});}
-async function finish(){const t=resultType(answers);try{if(isDemo){const me={id:state.me?.id||uuid(),nickname,type:t.id,candies:state.me?.candies||0,trick:state.me?.trick||null};state.ghosts=state.ghosts.filter(g=>g.id!==me.id);state.ghosts.push(me);state.me=me;writeDemo(state);}else{modal('<h2 class="modal-title">유령으로 변신하는 중…</h2>');await request('/api/profile',{method:'POST',body:JSON.stringify({nickname,answers})});state=await request('/api/house');}render();showResult(t,true);}catch(e){answers.pop();quiz();toast(e.message);}}
-function showResult(t,fresh){modal(`<div class="result"><div class="result-visual"><span class="mini-ghost" style="--ghost:${t.color}"></span></div><p class="result-tag">${esc(state.me.nickname)}님의 또 다른 모습</p><h2>${t.name}</h2><p class="modal-copy">${t.desc}</p><p class="quote">${t.habit}</p><dl class="facts"><dt>✦ 유령을 움직이는 한마디</dt><dd>${t.cure}</dd><dt>♡ 찰떡궁합</dt><dd>${t.match}</dd></dl><div class="row"><button class="secondary" id="share">결과 공유하기 ↗</button><button class="primary" id="enter">${fresh?'집에 입주하기':'동료 만나기'} →</button></div><button class="text-link" style="margin:auto" id="inbox">🍬 받은 사탕과 메시지 보기</button><button class="text-link" style="margin:auto;padding:6px" id="retake">테스트 다시 하기</button></div>`,'YOUR GHOST IDENTITY');$('#enter').onclick=()=>{$('#modal').close();house.focus(state.me.id);$('#community').scrollIntoView({behavior:'smooth',block:'center'});};$('#share').onclick=()=>shareResult(t);$('#inbox').onclick=inbox;$('#retake').onclick=()=>{nickname=state.me.nickname;answers=[];quiz();};}
-async function copy(text){try{await navigator.clipboard.writeText(text);toast('복사했어요. 슬랙에 붙여넣어 공유해 주세요!');}catch{modal(`<h2 class="modal-title">아래 내용을 복사해 주세요</h2><textarea id="copy-text" readonly></textarea>`);$('#copy-text').value=text;$('#copy-text').select();}}
-async function shareResult(t){const url=new URL(location.href);url.hash='';url.search='';const text=`👻 ${state.me.nickname}님은 ‘${t.name}’!\n${t.habit}\n급구 유령의 집에서 내 유령도 찾아보세요.\n${url}`;if(navigator.share){try{await navigator.share({title:'급구 유령의 집',text});return;}catch(e){if(e.name==='AbortError')return;}}await copy(text);}
-function openGhost(id){const g=state.ghosts.find(g=>g.id===id);if(!g)return;if(g.id===state.me?.id){showResult(typeOf(g.type),false);return;}selected=id;tab='treat';trick='pumpkin';showAction();}
-function showAction(){const g=state.ghosts.find(g=>g.id===selected);if(!g)return;const t=typeOf(g.type);modal(`<div class="result"><div class="result-visual" style="height:90px"><span class="mini-ghost" style="--ghost:${t.color}"></span></div><span class="result-tag">${t.name}</span><h2 style="margin-bottom:5px">${esc(g.nickname)}</h2><p class="modal-copy">${t.tag} · 🍬 ${g.candies||0}</p></div><div class="action-tabs"><button data-tab="treat" class="${tab==='treat'?'active':''}">🍬 Treat · 사탕 주기</button><button data-tab="trick" class="${tab==='trick'?'active':''}">🕷️ Trick · 장난치기</button></div>${tab==='treat'?'<label class="field-label" for="message">사탕과 함께 전할 한마디 <span style="color:#9e8bad">(선택)</span></label><textarea id="message" placeholder="오늘도 함께해 줘서 고마워요!" maxlength="200"></textarea>':`<div class="tricks">${TRICKS.map(t=>`<button class="trick ${trick===t.id?'active':''}" data-trick="${t.id}">${t.icon} ${t.name}<small>${t.desc}</small></button>`).join('')}</div>`}<p class="notice">${isDemo?'체험 모드예요. 화면에서만 반영되며 슬랙 알림은 전송하지 않아요.':'보내는 사람의 이름이 표시돼요. 받는 동료에게 슬랙 DM 알림이 전송돼요.'}</p><p class="error" id="action-error"></p><button class="primary full" id="send">${!state.me?'먼저 내 유령 만들기':tab==='treat'?'🍬 사탕 보내기':'🕷️ 장난 걸기'}</button>`,'TRICK OR TREAT!');$('.action-tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;showAction()});$('.tricks')?.querySelectorAll('button').forEach(b=>b.onclick=()=>{trick=b.dataset.trick;$('.tricks').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b))});$('#send').onclick=send;}
-async function send(){if(!state.me){begin();return;}const g=state.ghosts.find(g=>g.id===selected);const button=$('#send');button.disabled=true;const message=$('#message')?.value.trim()||'';try{let notification='demo';if(isDemo){const recent=state.events.find(e=>e.fromId===state.me.id&&e.toId===selected&&e.kind===tab&&Date.now()-e.createdAt<30000);if(recent)throw new Error('방금 인사를 보냈어요. 30초 후에 다시 보내 주세요.');if(tab==='treat')g.candies=(g.candies||0)+1;else g.trick={id:trick,expiresAt:Date.now()+30*60*1000};state.events.unshift({id:uuid(),fromId:state.me.id,toId:g.id,from:state.me.nickname,to:g.nickname,kind:tab,message,trick:tab==='trick'?trick:null,createdAt:Date.now()});state.events=state.events.slice(0,200);writeDemo(state);}else{const r=await request('/api/interactions',{method:'POST',body:JSON.stringify({toId:selected,kind:tab,trick:tab==='trick'?trick:null,message,requestId:uuid()})});notification=r.notification;state=await request('/api/house');}render();modal(`<div class="result"><div class="success-icon">${tab==='treat'?'🍬':TRICKS.find(t=>t.id===trick).icon}</div><h2>${tab==='treat'?'달콤한 마음 전달 완료!':'장난 성공!'}</h2><p class="modal-copy">${esc(g.nickname)}님에게 ${tab==='treat'?'사탕을 건넸어요.':'귀여운 저주를 걸었어요.'}</p><p class="notice">${notification==='demo'?'체험 기록으로 저장했어요. 실제 슬랙 전송은 없어요.':notification==='sent'?'동료에게 슬랙 DM도 보냈어요.':'앱에는 반영됐지만 슬랙 알림 전송은 실패했어요. 관리자에게 알려 주세요.'}</p><button class="primary full" id="done">유령의 집으로 돌아가기 →</button></div>`,'A LITTLE HALLOWEEN MAGIC');$('#done').onclick=()=>$('#modal').close();}catch(e){$('#action-error').textContent=e.message;button.disabled=false;}}
-async function inbox(){try{const data=isDemo?state.events.filter(e=>e.toId===state.me.id):await request('/api/inbox');modal(`<h2 class="modal-title">나에게 도착한 인사 🍬</h2>${data.length?data.map(e=>`<div class="quote"><strong>${esc(e.from)}</strong> · ${e.kind==='treat'?'🍬 사탕':'🕷️ 장난'}<p class="modal-copy">${esc(e.message||TRICKS.find(t=>t.id===e.trick)?.desc||'달콤한 사탕을 보냈어요.')}</p></div>`).join(''):'<p class="modal-copy">아직 도착한 인사가 없어요.<br>동료에게 먼저 사탕을 건네 볼까요?</p>'}`);}catch(e){toast(e.message);}}
-function guide(){modal(`<h2 class="modal-title">낯익은 동료, 새로운 유령.</h2><p class="modal-copy">① 다섯 가지 질문으로 내 유령 찾기<br>② 집 안의 유령이나 아래 동료 카드 누르기<br>③ 사탕과 메시지를 보내거나 귀여운 장난 걸기</p><div class="notice">${isDemo?'지금은 체험 모드예요. 가상의 유령과 내 기록은 이 브라우저에만 저장되고, 다른 기기와 공유되지 않아요. 실제 직원 정보와 슬랙 전송은 연결하지 않았어요.':'슬랙으로 로그인한 직원끼리 참여할 수 있어요. 이름과 캐릭터, 사탕 수가 동료들에게 표시돼요. 메시지 내용은 받은 사람만 볼 수 있어요. 로그아웃하면 이 탭의 로그인 정보가 삭제돼요.'}<br><br>장난 효과는 30분 뒤 사라져요. 같은 동료에게 같은 행동은 30초 간격으로 보낼 수 있어요.</div>${isDemo?'<button class="secondary full" id="clear-demo">이 브라우저의 체험 기록 초기화</button>':'<button class="secondary full" id="logout">로그아웃</button>'}`);$('#clear-demo')?.addEventListener('click',()=>{modal('<h2 class="modal-title">체험 기록을 초기화할까요?</h2><p class="modal-copy">이 브라우저에서 만든 내 유령과 주고받은 체험 기록이 지워져요.</p><button class="primary full" id="confirm-clear">초기화하기</button>');$('#confirm-clear').onclick=()=>{localStorage.removeItem('gubgoo-halloween-v1');state=readDemo();render();$('#modal').close();toast('체험 기록을 초기화했어요.');};});$('#logout')?.addEventListener('click',async()=>{try{await request('/api/logout',{method:'POST'});}catch{}sessionStorage.removeItem('ghost-token');state={ghosts:[],events:[],me:null};render();$('#modal').close();});}
-$('#start').onclick=begin;$('#my').onclick=begin;$('#home').onclick=()=>window.scrollTo({top:0,behavior:'smooth'});$('#browse').onclick=()=>$('#community').scrollIntoView({behavior:'smooth'});$('#guide').onclick=guide;$('#about').onclick=guide;$('#search').oninput=e=>{search=e.target.value;renderList();};$('.room-tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{filter=b.dataset.room;$('.room-tabs').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));house.focus(filter);renderList();});$('#zoom-in').onclick=()=>house.zoom(1);$('#zoom-out').onclick=()=>house.zoom(-1);$('#reset').onclick=()=>{filter='all';house.reset();$('.room-tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.room==='all'));renderList();};
-try{acceptLogin();}catch(e){toast(e.message);}render();refresh();setInterval(()=>{if(!document.hidden&&!$('#modal').open)refresh();},30000);window.addEventListener('storage',()=>{if(isDemo)refresh()});window.addEventListener('pagehide',()=>house.dispose(),{once:true});
+import { TYPES, QUESTIONS, resultType } from './data.js';
+import { resultText } from './share.js';
+
+const $ = selector => document.querySelector(selector);
+let answers = [];
+let result = null;
+
+$('#app').innerHTML = `
+  <header>
+    <div class="brand"><span class="brand-mark">↯</span><div>급구 유령 테스트<small>NEEDER AFTER DARK</small></div></div>
+    <nav class="nav" aria-label="주 메뉴"><button class="my" id="my">👻 나의 유령 찾기</button></nav>
+  </header>
+  <main class="container">
+    <div class="topline"><div class="eyebrow">OCTOBER 31 · HALLOWEEN SPECIAL</div><span class="mode">5문항 · 약 1분</span></div>
+    <section class="hero" aria-label="우리 회사에 사는 유령 테스트">
+      <div class="intro">
+        <span class="pill">✦ 오늘만큼은, 우리도 유령</span>
+        <h1>퇴근 후 깨어나는<br>또 다른 <span>나.</span></h1>
+        <p>회의실 지박령부터 정시 퇴근 늑대인간까지.<br>회사에 숨어 있던 나의 유령을 찾아보세요.<br>Trick or Treat! 오늘의 정체는 뭘까요?</p>
+        <button class="primary" id="start">나의 유령 알아보기 <b>↗</b></button>
+        <div class="intro-note"><span class="tiny-ghosts">👻🎃👻</span>여섯 가지 유령 중 나는 어떤 모습일까?</div>
+      </div>
+      <div class="scene-wrap" id="scene"></div>
+      <div class="scene-bottom"><span class="help">↔ 드래그해서 회전 · 스크롤로 확대</span><div class="scene-controls"><button id="zoom-in" aria-label="확대">+</button><button id="zoom-out" aria-label="축소">−</button><button id="reset" aria-label="처음 시점으로">↺</button></div></div>
+    </section>
+    <section class="quiz-guide" aria-label="참여 방법">
+      <div><span>01</span><strong>나답게 골라요</strong><p>다섯 가지 질문에 솔직하게 답해요.</p></div>
+      <div><span>02</span><strong>내 유령을 만나요</strong><p>나의 특징과 찰떡궁합을 확인해요.</p></div>
+      <div><span>03</span><strong>복사하고 나눠요</strong><p>결과 텍스트를 복사해 슬랙에 붙여넣어요.</p></div>
+    </section>
+    <footer class="footer"><span>NEEDER AFTER DARK © 2026 · 오늘도 급구를 지키는 모든 유령에게.</span><span>재미로 즐기는 테스트예요. 답변은 저장하지 않아요.</span></footer>
+  </main>`;
+
+// The house is decorative. Quiz and copying still work if 3D is unavailable.
+let house;
+import('./scene.js').then(({ createHouse }) => {
+  house = createHouse($('#scene'));
+}).catch(() => { $('#scene').innerHTML = '<div class="scene-placeholder" aria-hidden="true">👻 🎃 👻</div>'; });
+
+function modal(content, title = 'FIND YOUR INNER GHOST') {
+  const el = $('#modal');
+  el.innerHTML = `<div class="modal-top"><span>${title}</span><button class="close" aria-label="닫기">×</button></div>${content}`;
+  el.querySelector('.close').onclick = () => el.close();
+  if (!el.open) el.showModal();
+  const heading = el.querySelector('h2');
+  if (heading) { heading.tabIndex = -1; heading.focus(); }
+}
+
+$('#modal').addEventListener('click', event => {
+  if (event.target !== $('#modal')) return;
+  const rect = event.target.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close();
+});
+
+function begin() {
+  answers = [];
+  quiz();
+}
+
+function quiz() {
+  const index = answers.length;
+  const question = QUESTIONS[index];
+  modal(`
+    <div class="progress" aria-hidden="true"><div style="width:${index / QUESTIONS.length * 100}%"></div></div>
+    <span class="result-tag">QUESTION 0${index + 1} / 0${QUESTIONS.length}</span>
+    <h2 class="modal-title">${question.q}</h2>
+    <div class="answers">${question.a.map(([text, id], i) => `<button class="answer" data-answer="${id}"><span class="answer-number">0${i + 1}</span>${text}</button>`).join('')}</div>
+    ${index ? '<button class="quiz-back">← 이전 질문</button>' : ''}`);
+  $('.answers').querySelectorAll('button').forEach(button => {
+    button.onclick = () => {
+      answers.push(button.dataset.answer);
+      if (answers.length < QUESTIONS.length) quiz();
+      else {
+        result = resultType(answers);
+        $('#my').textContent = '👻 내 결과 보기';
+        showResult();
+      }
+    };
+  });
+  $('.quiz-back')?.addEventListener('click', () => { answers.pop(); quiz(); });
+}
+
+function showResult() {
+  if (!result) return begin();
+  const type = result;
+  modal(`
+    <div class="result">
+      <div class="result-visual"><span class="mini-ghost" style="--ghost:${type.color}"></span></div>
+      <p class="result-tag">${type.tag}</p>
+      <h2>나는 ${type.name}!</h2>
+      <p class="modal-copy">${type.desc}</p>
+      <p class="quote">${type.habit}</p>
+      <dl class="facts"><dt>✦ 유령을 움직이는 한마디</dt><dd>${type.cure}</dd><dt>♡ 찰떡궁합</dt><dd>${type.match}</dd></dl>
+      <button class="primary full" id="copy-result">📋 결과 텍스트 복사하기</button>
+      <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+      <div id="manual-copy" hidden><label class="field-label" for="copy-text">자동 복사가 지원되지 않아요. 아래 텍스트를 직접 복사해 주세요.</label><textarea id="copy-text" readonly rows="9"></textarea></div>
+      <button class="text-link retake" id="retake">테스트 다시 하기 ↺</button>
+    </div>`, 'YOUR GHOST IDENTITY');
+  $('#copy-result').onclick = () => copyResult(type);
+  $('#retake').onclick = begin;
+}
+
+async function copyResult(type) {
+  const text = resultText(type, location.href);
+  const button = $('#copy-result');
+  const status = $('#copy-status');
+  const manual = $('#manual-copy');
+  button.disabled = true;
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    }
+  } catch { /* Fall back without claiming the text was copied. */ }
+  if (!copied) {
+    const field = $('#copy-text');
+    manual.hidden = false;
+    field.value = text;
+    field.focus();
+    field.select();
+    try { copied = document.execCommand('copy'); } catch { /* Keep manual text selected. */ }
+  }
+  if (copied) {
+    manual.hidden = true;
+    status.textContent = '복사했어요! 슬랙에 붙여넣어 내 유령을 소개해 주세요. 🍬';
+    button.textContent = '✓ 복사 완료 · 다시 복사하기';
+  } else {
+    status.textContent = '선택된 텍스트를 Ctrl+C 또는 ⌘C로 복사해 주세요.';
+  }
+  button.disabled = false;
+  if (copied) button.focus();
+}
+
+$('#start').onclick = begin;
+$('#my').onclick = () => result ? showResult() : begin();
+$('#zoom-in').onclick = () => house?.zoom(1);
+$('#zoom-out').onclick = () => house?.zoom(-1);
+$('#reset').onclick = () => house?.reset();
+window.addEventListener('pagehide', event => { if (!event.persisted) house?.dispose(); });
