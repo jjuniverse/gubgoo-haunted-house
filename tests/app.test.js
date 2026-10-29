@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {QUESTIONS,TYPES,resultType,escapeHtml} from '../src/data.js';
+import worker,{validateInteraction,validateProfile,hash} from '../server/worker.js';
+test('every character is reachable through valid quiz responses',()=>{const results=new Set();function walk(a){if(a.length===QUESTIONS.length){results.add(resultType(a).id);return;}for(const [,answer] of QUESTIONS[a.length].a)walk([...a,answer]);}walk([]);assert.deepEqual([...results].sort(),TYPES.map(t=>t.id).sort());});
+test('ties resolve deterministically and invalid answer at a question is rejected',()=>{assert.equal(resultType(['meeting','vampire']).id,'meeting');assert.throws(()=>validateProfile({nickname:'쥬디',answers:Array(5).fill('meeting')}));const p=validateProfile({nickname:' 쥬디 ',answers:QUESTIONS.map(q=>q.a[0][1])});assert.equal(p.nickname,'쥬디');});
+test('participant text cannot inject HTML in rendered content',()=>{assert.equal(escapeHtml('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');});
+test('interaction input rejects unsupported tricks, long messages and invalid IDs',()=>{const valid={toId:'U0123456789',requestId:crypto.randomUUID(),kind:'trick',trick:'pumpkin',message:''};assert.equal(validateInteraction(valid).trick,'pumpkin');for(const delta of [{trick:'unknown'},{message:'a'.repeat(201)},{kind:'delete'},{toId:'<script>'}])assert.throws(()=>validateInteraction({...valid,...delta}));});
+test('unauthenticated visitors cannot read coworkers',async()=>{const r=await worker.fetch(new Request('https://api.example/api/house'),{APP_URL:'https://example.com'});assert.equal(r.status,401);});
+test('other origins cannot read API',async()=>{const r=await worker.fetch(new Request('https://api.example/api/house',{headers:{Origin:'https://wrong.example'}}),{APP_URL:'https://example.com'});assert.equal(r.status,403);assert.equal(r.headers.get('Access-Control-Allow-Origin'),null);});
+test('session credentials stored as SHA-256 hashes',async()=>{assert.equal((await hash('abc')),'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');});

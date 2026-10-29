@@ -1,0 +1,9 @@
+{
+  "display_information": {"name": "급구 유령의 집", "description": "동료들과 함께하는 할로윈 Trick or Treat", "background_color": "#251e30"},
+  "features": {"bot_user": {"display_name": "급구 유령의 집", "always_online": false}},
+  "oauth_config": {
+    "redirect_urls": ["https://YOUR_WORKER.workers.dev/auth/callback"],
+    "scopes": {"bot": ["chat:write", "im:write", "users:read"], "user": ["users:read"]}
+  },
+  "settings": {"org_deploy_enabled": false, "socket_mode_enabled": false, "token_rotation_enabled": false}
+}
